@@ -39,7 +39,7 @@
 # silver_path = file_key.replace('BRONZE', 'SILVER').replace('.json', '.parquet')
 # upload_to_s3(bucket_name, silver_path, parquet_buffer.getvalue())
 
-
+#pancing
 import json
 import re
 import boto3
