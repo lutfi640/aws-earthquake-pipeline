@@ -7,7 +7,7 @@ import json
 with DAG(
     dag_id='earthquake_hello_world_pipeline',
     start_date=datetime(2026, 1, 1),
-    schedule_interval=None, # None artinya cuma jalan kalau kita klik "Trigger" manual di UI
+    schedule=None, # None artinya cuma jalan kalau kita klik "Trigger" manual di UI
     catchup=False
 ) as dag:
 
