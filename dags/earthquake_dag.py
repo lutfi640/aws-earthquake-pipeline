@@ -33,3 +33,4 @@ with DAG(
     )
 
     extract_bronze >> transform_silver
+    /home/ec2-user/airflow/scripts/extractors/extract_earthquake.py
