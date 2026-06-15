@@ -1,5 +1,5 @@
 from airflow import DAG
-airflow.providers.amazon.aws.operators.lambda_function import LambdaInvokeFunctionOperator as LambdaInvokeOperator
+from airflow.providers.amazon.aws.operators.lambda_function import LambdaInvokeFunctionOperator as LambdaInvokeOperator
 from datetime import datetime
 import json
 
