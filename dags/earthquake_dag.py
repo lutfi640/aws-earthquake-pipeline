@@ -33,7 +33,7 @@ with DAG(
     # TRIK RAHASIA: Membaca file script transform lokal EC2 lo sebagai string
     # -------------------------------------------------------------
     try:
-        with open('/home/ec2-user/airflow/scripts/transformers/transform_earthquake.py', 'r') as file:
+        with open('/home/ec2-user/airflow/lambda/transformers/transform_earthquake.py', 'r') as file:
             script_code_string = file.read()
     except Exception as e:
         # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
