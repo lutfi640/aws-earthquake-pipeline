@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # LANGKAH BARU 1: Tukang Sapu Bersih (Hapus folder kodingan lama di EC2)
+      # LANGKAH BARU 1: Tukang Sapu Bersih (Hanya hapus ISINYA, bukan foldernya)
       - name: Clean Up Old Files in EC2
         uses: appleboy/ssh-action@v0.1.6
         with:
@@ -21,8 +21,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd /home/ec2-user/airflow
-            # Hanya hapus folder yang isinya kodingan, biarkan file docker/database aman
-            rm -rf dags/ scripts/ utils/
+            # Tambahin tanda bintang (*) biar foldernya tetep utuh, isinya aja yang musnah
+            rm -rf dags/* scripts/* utils/*
 
       # LANGKAH 2: Kurir Paket (Kirim file yang seger dari GitHub)
       - name: Copy Files to EC2

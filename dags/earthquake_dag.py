@@ -18,7 +18,7 @@ with DAG(
     'earthquake_pipeline_v2',
     default_args=default_args,
     description='Pipeline Gempa Dinamis Tanpa Rebuild Docker',
-    schedule_interval='@daily',
+    schedule=None, # Gak jalan otomatis, cuma manual trigger
     catchup=False,
     tags=['aws', 'earthquake']
 ) as dag:

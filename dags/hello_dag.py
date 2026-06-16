@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.providers.amazon.aws.operators.lambda_function import LambdaInvokeFunctionOperator as LambdaInvokeOperator
 from datetime import datetime
 import json
-anjing
+
 default_args = {
     'owner': 'imam',
     'start_date': datetime(2026, 1, 1),
