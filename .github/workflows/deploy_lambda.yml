@@ -9,16 +9,22 @@ jobs:
   deploy-and-refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-southeast-3 # Ganti sesuai region AWS lo, misal ap-southeast-3 (Jakarta)
-
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      # LANGKAH BARU 1: Tukang Sapu Bersih (Hapus folder kodingan lama di EC2)
+      - name: Clean Up Old Files in EC2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ec2-user/airflow
+            # Hanya hapus folder yang isinya kodingan, biarkan file docker/database aman
+            rm -rf dags/ scripts/ utils/
+
+      # LANGKAH 2: Kurir Paket (Kirim file yang seger dari GitHub)
       - name: Copy Files to EC2
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -29,6 +35,7 @@ jobs:
           target: "/home/ec2-user/airflow"
           overwrite: true
 
+      # LANGKAH 3: Mandor Airflow (Benerin izin & bangunin scheduler)
       - name: Refresh Airflow Environment in EC2
         uses: appleboy/ssh-action@v0.1.6
         with:
@@ -41,4 +48,4 @@ jobs:
             if [ -d "dags" ]; then
               touch dags/*.py
             fi
-            echo "Deploy sukses di folder default Airflow, bray!"
+            echo "Deploy bersih tanpa file sampah sukses, bray!"
