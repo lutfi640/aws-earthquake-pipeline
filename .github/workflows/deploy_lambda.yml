@@ -1,4 +1,17 @@
-# 2. Kirim file-file dari laptop langsung ke folder default Airflow di EC2
+name: Deploy Airflow Pipeline to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-and-refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
       - name: Copy Files to EC2
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -6,10 +19,9 @@
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "."
-          target: "/home/ec2-user/airflow" # <--- DIUBAH KE FOLDER DEFAULT
+          target: "/home/ec2-user/airflow"
           overwrite: true
 
-      # 3. Eksekusi SSH untuk refresh file di folder default
       - name: Refresh Airflow Environment in EC2
         uses: appleboy/ssh-action@v0.1.6
         with:
@@ -17,7 +29,7 @@
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ec2-user/airflow # <--- DIUBAH KE FOLDER DEFAULT
+            cd /home/ec2-user/airflow
             chmod -R 755 .
             if [ -d "dags" ]; then
               touch dags/*.py
