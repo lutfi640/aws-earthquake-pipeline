@@ -26,14 +26,14 @@ with DAG(
     # TASK 1: EXTRACT (Tetap seperti biasa)
     extract_task = BashOperator(
         task_id='extract_api_to_bronze',
-        bash_command='python /home/ec2-user/aws-earthquake-pipeline/scripts/extractors/extract_earthquake.py',
+        bash_command='python /home/ec2-user/airflow/scripts/extractors/extract_earthquake.py',
     )
 
     # -------------------------------------------------------------
     # TRIK RAHASIA: Membaca file script transform lokal EC2 lo sebagai string
     # -------------------------------------------------------------
     try:
-        with open('/home/ec2-user/aws-earthquake-pipeline/scripts/transformers/transform_earthquake.py', 'r') as file:
+        with open('/home/ec2-user/airflow/scripts/transformers/transform_earthquake.py', 'r') as file:
             script_code_string = file.read()
     except Exception as e:
         # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
