@@ -1,61 +1,52 @@
-import pandas as pd
-import boto3
-import json
-from datetime import datetime
-import io
-import sys
-import os
+# ==========================================
+# 1. FUNGSI UTILS (LANGSUNG DITEMPEL DI SINI)
+# ==========================================
+def read_from_s3(bucket, key):
+    # s3_client sudah otomatis pakai permission IAM Role Lambda lo
+    s3_client = boto3.client('s3')
+    obj = s3_client.get_object(Bucket=bucket, Key=key)
+    return obj['Body'].read().decode('utf-8')
 
-# Setup path agar bisa baca dari utils
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# project_root = os.path.dirname(current_dir)
-# if project_root not in sys.path:
-#     sys.path.append(project_root)
+def upload_to_s3(bucket, key, data):
+    s3_client = boto3.client('s3')
+    s3_client.put_object(Bucket=bucket, Key=key, Body=data)
+    print(f"Sukses upload ke s3://{bucket}/{key}")
 
-from utils.aws_helper import read_from_s3, upload_to_s3
+# ==========================================
+# 2. LOGIC TRANSFORMATION UTAMA (DINAMIS)
+# ==========================================
+print("Menerima event dinamis dari Airflow:", event)
 
-def lambda_handler(event, context):
-    print("Menerima event dari Airflow:", event)
+# Ambil bucket dan key dari event (Default ke hari ini kalau gak ada)
+bucket_name = event.get('bucket', 'learn-aws-imam')
+default_key = f"BRONZE/earthquake_data_{datetime.now().strftime('%Y-%m-%d')}.json"
+file_key = event.get('key', default_key)
+
+print(f"Mulai memproses file: {file_key} dari bucket: {bucket_name}")
+
+try:
+    # Baca JSON dari S3
+    content = read_from_s3(bucket_name, file_key)
+    data = json.loads(content)
+
+    # Flatten JSON menggunakan Pandas
+    df = pd.json_normalize(data['features'])
+    df['properties.time'] = pd.to_datetime(df['properties.time'], unit='ms')
+    df['properties.updated'] = pd.to_datetime(df['properties.updated'], unit='ms')
+    df = df.loc[:, ['properties.mag', 'properties.place', 'properties.time',
+                   'properties.updated', 'properties.alert', 'properties.tsunami', 'properties.sig', 
+                    'properties.type', 'geometry.coordinates']]
+
+    # Create memory buffer & Convert ke Parquet
+    parquet_buffer = io.BytesIO()
+    df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
+
+    # Upload ke S3 (Silver Layer)
+    silver_path = file_key.replace('BRONZE', 'SILVER').replace('.json', '.parquet')
+    upload_to_s3(bucket_name, silver_path, parquet_buffer.getvalue())
     
-    # 1. Ambil bucket dan key dari event (Default ke hari ini kalau gak ada)
-    bucket_name = event.get('bucket', 'learn-aws-imam')
-    default_key = f"BRONZE/earthquake_data_{datetime.now().strftime('%Y-%m-%d')}.json"
-    file_key = event.get('key', default_key)
-    
-    print(f"Mulai memproses file: {file_key} dari bucket: {bucket_name}")
+    print(f"Sukses! Data diproses ke Silver layer: {silver_path}")
 
-    try:
-        # 2. Baca JSON dari S3
-        content = read_from_s3(bucket_name, file_key)
-        data = json.loads(content)
-
-        # 3. Flatten JSON menggunakan Pandas
-        df = pd.json_normalize(data['features'])
-        df['properties.time'] = pd.to_datetime(df['properties.time'], unit='ms')
-        df['properties.updated'] = pd.to_datetime(df['properties.updated'], unit='ms')
-        df = df.loc[:, ['properties.mag', 'properties.place', 'properties.time',
-               'properties.updated', 'properties.alert', 'properties.tsunami', 'properties.sig', 
-                'properties.type', 'geometry.coordinates']]
-
-        # 4. Create memory buffer & Convert ke Parquet
-        parquet_buffer = io.BytesIO()
-        df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
-
-        # 5. Upload ke S3 (Silver Layer)
-        silver_path = file_key.replace('BRONZE', 'SILVER').replace('.json', '.parquet')
-        upload_to_s3(bucket_name, silver_path, parquet_buffer.getvalue())
-        
-        pesan_sukses = f"Sukses! Data diproses ke Silver layer: {silver_path}"
-        print(pesan_sukses)
-
-        return {
-            'statusCode': 200,
-            'body': json.dumps(pesan_sukses)
-        }
-        
-    except Exception as e:
-        print(f"Error terjadi: {str(e)}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps(f"Error saat memproses data: {str(e)}")
-        }
+except Exception as e:
+    print(f"Error terjadi di dalam Lambda Executor: {str(e)}")
+    raise e # Kita raise error-nya biar Airflow tahu kalau task ini gagal

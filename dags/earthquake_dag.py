@@ -1,35 +1,57 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.providers.amazon.aws.operators.lambda_function import LambdaInvokeFunctionOperator as LambdaInvokeOperator
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
+default_args = {
+    'owner': 'imam',
+    'start_date': datetime(2023, 1, 1),
+    'retries': 1,
+    'retry_delay': timedelta(minutes=2),
+}
+
+today_str = datetime.now().strftime('%Y-%m-%d')
+s3_key_bronze = f"BRONZE/earthquake_data_{today_str}.json"
+
 with DAG(
-    dag_id='earthquake_hello_world_pipeline',
-    start_date=datetime(2026, 1, 1),
-    schedule=None, # None artinya cuma jalan kalau kita klik "Trigger" manual di UI
-    catchup=False
+    'earthquake_pipeline_v2',
+    default_args=default_args,
+    description='Pipeline Gempa Dinamis Tanpa Rebuild Docker',
+    schedule_interval='@daily',
+    catchup=False,
+    tags=['aws', 'earthquake']
 ) as dag:
 
-    # Task 1: Jalankan extractor di EC2 buat bikin file Bronze
-    extract_bronze = BashOperator(
-        task_id='extract_dummy_to_bronze',
-        bash_command='python3 /home/ec2-user/airflow/scripts/extract_earthquake.py' 
-        # ^ Pastikan path di atas sesuai dengan folder di EC2 lo ya!
+    # TASK 1: EXTRACT (Tetap seperti biasa)
+    extract_task = BashOperator(
+        task_id='extract_api_to_bronze',
+        bash_command='python /home/ec2-user/aws-earthquake-pipeline/scripts/extractors/extract_earthquake.py',
     )
 
-    # Payload buat dikirim ke Lambda event
-    lambda_payload = {
-        "bucket": "learn-aws-imam",
-        "key": "BRONZE/dummy_hello.json"
-    }
+    # -------------------------------------------------------------
+    # TRIK RAHASIA: Membaca file script transform lokal EC2 lo sebagai string
+    # -------------------------------------------------------------
+    try:
+        with open('/home/ec2-user/aws-earthquake-pipeline/scripts/transformers/transform_earthquake.py', 'r') as file:
+            script_code_string = file.read()
+    except Exception as e:
+        # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
+        script_code_string = f"print('Gagal membaca file script lokal: {str(e)}')"
 
-    # Task 2: Panggil Lambda buat masak jadi Silver
-    transform_silver = LambdaInvokeOperator(
-        task_id='trigger_lambda_silver',
-        function_name='earthquake-transformer',
-        payload=json.dumps(lambda_payload),
-        aws_conn_id='aws_default' # Ganti kalau nama koneksi AWS di UI Airflow lo beda
+    # -------------------------------------------------------------
+    # TASK 2: TRANSFORM (Kirim kodenya lewat payload parameter 'code')
+    # -------------------------------------------------------------
+    transform_task = LambdaInvokeOperator(
+        task_id='transform_bronze_to_silver',
+        function_name='earthquake-transformer-docker', # Nama fungsi Lambda Docker lo
+        payload=json.dumps({
+            "code": script_code_string, # KODINGAN LO DISUNTIK DI SINI SEBAGAI TEKS!
+            "bucket": "learn-aws-imam", # Parameter tambahan buat dibaca script lo
+            "key": s3_key_bronze
+        }),
+        aws_conn_id='aws_default',
+        log_type='Tail'
     )
 
-    extract_bronze >> transform_silver
+    extract_task >> transform_task
