@@ -38,6 +38,7 @@ with DAG(
     except Exception as e:
         # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
         script_code_string = f"print('Gagal membaca file script lokal: {str(e)}')"
+        raise e
 
     # -------------------------------------------------------------
     # TASK 2: TRANSFORM (Kirim kodenya lewat payload parameter 'code')
