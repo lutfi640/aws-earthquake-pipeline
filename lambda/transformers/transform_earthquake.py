@@ -36,6 +36,26 @@ try:
     df = df.loc[:, ['properties.mag', 'properties.place', 'properties.time',
                    'properties.updated', 'properties.alert', 'properties.tsunami', 'properties.sig', 
                     'properties.type', 'geometry.coordinates']]
+    
+    #pecah kolom geometry.coordinates menjadi tiga kolom baru: longitude, latitude, depth
+    df['longitude'] = df['geometry.coordinates'].apply(lambda x: x[0] if isinstance(x, list) and len(x) > 0 else None)
+    df['latitude'] = df['geometry.coordinates'].apply(lambda x: x[1] if isinstance(x, list) and len(x) > 1 else None)
+    df['depth'] = df['geometry.coordinates'].apply(lambda x: x[2] if isinstance(x, list) and len(x) > 2 else None)
+
+    #delete kolom geometry.coordinates
+    df.drop(columns=['geometry.coordinates'], inplace=True)
+
+    #rename kolom biar tidak ada titik di nama kolom
+    df.rename(columns={
+        'properties.mag': 'magnitude',
+        'properties.place': 'place',
+        'properties.time': 'time',
+        'properties.updated': 'updated',
+        'properties.alert': 'alert',
+        'properties.tsunami': 'tsunami',
+        'properties.sig': 'sig',
+        'properties.type': 'type'
+    }, inplace=True)
 
     # Create memory buffer & Convert ke Parquet
     parquet_buffer = io.BytesIO()
