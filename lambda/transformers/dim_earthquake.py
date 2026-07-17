@@ -61,9 +61,9 @@ try:
     file_basename = file_key.split('/')[-1].replace('.json', '')
     date_suffix = file_basename.replace('earthquake_data_', '')
 
-    # upload_df_to_parquet_s3(df_place, bucket_name, f"SILVER/dim_place/dim_place_{date_suffix}.parquet")
-    # upload_df_to_parquet_s3(df_alert, bucket_name, f"SILVER/dim_alert/dim_alert_{date_suffix}.parquet")
-    # upload_df_to_parquet_s3(df_type, bucket_name, f"SILVER/dim_type/dim_type_{date_suffix}.parquet")
+    upload_df_to_parquet_s3(df_place, bucket_name, f"SILVER/dim_place_earthquake_{date_suffix}.parquet")
+    upload_df_to_parquet_s3(df_alert, bucket_name, f"SILVER/dim_alert_earthquake_{date_suffix}.parquet")
+    upload_df_to_parquet_s3(df_type, bucket_name, f"SILVER/dim_type_earthquake_{date_suffix}.parquet")
 
     print(f"🎉 SUKSES! 3 Tabel Dimensi disimpan ke Silver.")
 
