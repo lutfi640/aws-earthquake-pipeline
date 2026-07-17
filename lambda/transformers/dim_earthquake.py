@@ -5,22 +5,20 @@ import io
 from datetime import datetime
 
 # ==========================================
-# 1. FUNGSI UTILS
+# 1. FUNGSI UTILS (UDAH DI-MERGE BIAR AMAN DARI EXEC)
 # ==========================================
 def read_from_s3(bucket, key):
     s3_client = boto3.client('s3')
     obj = s3_client.get_object(Bucket=bucket, Key=key)
     return obj['Body'].read().decode('utf-8')
 
-def upload_to_s3(bucket, key, data):
-    s3_client = boto3.client('s3')
-    s3_client.put_object(Bucket=bucket, Key=key, Body=data)
-    print(f"Sukses upload ke s3://{bucket}/{key}")
-
 def upload_df_to_parquet_s3(df, bucket, key):
+    # Logic upload S3 langsung digabung ke sini
+    s3_client = boto3.client('s3')
     parquet_buffer = io.BytesIO()
     df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
-    upload_to_s3(bucket, key, parquet_buffer.getvalue())
+    s3_client.put_object(Bucket=bucket, Key=key, Body=parquet_buffer.getvalue())
+    print(f"Sukses upload parquet ke s3://{bucket}/{key}")
 
 # ==========================================
 # 2. LOGIC TASK: BUILD DIMENSIONS
@@ -61,9 +59,9 @@ try:
     file_basename = file_key.split('/')[-1].replace('.json', '')
     date_suffix = file_basename.replace('earthquake_data_', '')
 
-    upload_df_to_parquet_s3(df_place, bucket_name, f"SILVER/dim_place_earthquake_{date_suffix}.parquet")
-    upload_df_to_parquet_s3(df_alert, bucket_name, f"SILVER/dim_alert_earthquake_{date_suffix}.parquet")
-    upload_df_to_parquet_s3(df_type, bucket_name, f"SILVER/dim_type_earthquake_{date_suffix}.parquet")
+    upload_df_to_parquet_s3(df_place, bucket_name, f"SILVER/dim_place/dim_place_{date_suffix}.parquet")
+    upload_df_to_parquet_s3(df_alert, bucket_name, f"SILVER/dim_alert/dim_alert_{date_suffix}.parquet")
+    upload_df_to_parquet_s3(df_type, bucket_name, f"SILVER/dim_type/dim_type_{date_suffix}.parquet")
 
     print(f"🎉 SUKSES! 3 Tabel Dimensi disimpan ke Silver.")
 
