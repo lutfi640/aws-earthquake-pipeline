@@ -33,7 +33,7 @@ with DAG(
     # TRIK RAHASIA: Membaca file script transform lokal EC2 lo sebagai string
     # -------------------------------------------------------------
     try:
-        with open('/opt/airflow/lambda/transformers/transform_earthquake.py', 'r') as file:
+        with open('/opt/airflow/lambda/transformers/dim_earthquake.py', 'r') as file:
             script_code_string = file.read()
     except Exception as e:
         # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
@@ -41,7 +41,30 @@ with DAG(
         raise e
 
     # -------------------------------------------------------------
-    # TASK 2: TRANSFORM (Kirim kodenya lewat payload parameter 'code')
+    # TASK 2: GENERATE DIM 
+    # -------------------------------------------------------------
+    generate_dim = LambdaInvokeOperator(
+        task_id='generate_dim_earthquake',
+        function_name='earthquake-transformer-docker', # Nama fungsi Lambda Docker lo
+        payload=json.dumps({
+            "code": script_code_string, # KODINGAN LO DISUNTIK DI SINI SEBAGAI TEKS!
+            "bucket": "learn-aws-imam", # Parameter tambahan buat dibaca script lo
+            "key": s3_key_bronze
+        }),
+        aws_conn_id='aws_default',
+        log_type='Tail'
+    )
+
+
+    try:
+        with open('/opt/airflow/lambda/transformers/transform_earthquake.py', 'r') as file:
+            script_code_string = file.read()
+    except Exception as e:
+        # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
+        script_code_string = f"print('Gagal membaca file script lokal: {str(e)}')"
+        raise e
+    # -------------------------------------------------------------
+    # TASK 3: TRANSFORM (Kirim kodenya lewat payload parameter 'code')
     # -------------------------------------------------------------
     transform_task = LambdaInvokeOperator(
         task_id='transform_bronze_to_silver',
@@ -55,4 +78,6 @@ with DAG(
         log_type='Tail'
     )
 
-    extract_task >> transform_task
+    
+
+    extract_task >> generate_dim >>transform_task
