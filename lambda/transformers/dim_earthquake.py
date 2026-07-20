@@ -72,63 +72,63 @@ def upsert_dimension(df_new, bucket, key, id_prefix, join_col, id_col, zfill_len
 # ==========================================
 # 2. LOGIC TASK: BUILD DIMENSIONS
 # ==========================================
-def lambda_handler(event, context):
-    print("Menerima event dinamis dari Airflow:", event)
+# def lambda_handler(event, context):
+print("Menerima event dinamis dari Airflow:", event)
 
-    bucket_name = event.get('bucket', 'learn-aws-imam')
-    date_str = datetime.now().strftime('%Y-%m-%d')
-    default_key = f"bronze/earthquake_data_{date_str}.json"
-    file_key = event.get('key', default_key)
+bucket_name = event.get('bucket', 'learn-aws-imam')
+date_str = datetime.now().strftime('%Y-%m-%d')
+default_key = f"bronze/earthquake_data_{date_str}.json"
+file_key = event.get('key', default_key)
 
-    try:
-        print(f"[TASK: DIM] Mulai memproses file: {file_key} dari bucket: {bucket_name}")
-        content = read_from_s3(bucket_name, file_key)
-        data = json.loads(content)
-        df_raw = pd.json_normalize(data['features'])
+try:
+    print(f"[TASK: DIM] Mulai memproses file: {file_key} dari bucket: {bucket_name}")
+    content = read_from_s3(bucket_name, file_key)
+    data = json.loads(content)
+    df_raw = pd.json_normalize(data['features'])
 
-        # 1. Siapin Data Unik Baru: DIM_PLACE
-        df_place = df_raw[['properties.place']].drop_duplicates().dropna().reset_index(drop=True)
-        df_place.rename(columns={'properties.place': 'place'}, inplace=True)
-        df_place['country'] = df_place['place'].apply(lambda x: str(x).split(',')[-1].strip() if ',' in str(x) else str(x).strip())
-        
-        # 2. Siapin Data Unik Baru: DIM_ALERT
-        df_raw['properties.alert'] = df_raw['properties.alert'].fillna('unknown')
-        df_alert = pd.DataFrame({'alert': df_raw['properties.alert'].unique()})
-        
-        # 3. Siapin Data Unik Baru: DIM_TYPE
-        df_type = df_raw[['properties.type']].drop_duplicates().dropna().reset_index(drop=True)
-        df_type.rename(columns={'properties.type': 'event_type'}, inplace=True)
+    # 1. Siapin Data Unik Baru: DIM_PLACE
+    df_place = df_raw[['properties.place']].drop_duplicates().dropna().reset_index(drop=True)
+    df_place.rename(columns={'properties.place': 'place'}, inplace=True)
+    df_place['country'] = df_place['place'].apply(lambda x: str(x).split(',')[-1].strip() if ',' in str(x) else str(x).strip())
+    
+    # 2. Siapin Data Unik Baru: DIM_ALERT
+    df_raw['properties.alert'] = df_raw['properties.alert'].fillna('unknown')
+    df_alert = pd.DataFrame({'alert': df_raw['properties.alert'].unique()})
+    
+    # 3. Siapin Data Unik Baru: DIM_TYPE
+    df_type = df_raw[['properties.type']].drop_duplicates().dropna().reset_index(drop=True)
+    df_type.rename(columns={'properties.type': 'event_type'}, inplace=True)
 
-        # ==========================================
-        # 3. UPSERT KE S3 SILVER (MERGE INSERT)
-        # ==========================================
-        # Best Practice Penamaan File Dimensi: Cukup nama tabelnya (Tanpa tanggal)
-        # S3 Path: silver/earthquake/dim_place/dim_place.parquet
-        
-        upsert_dimension(
-            df_new=df_place, 
-            bucket=bucket_name, 
-            key="silver/earthquake/dim_place/dim_place.parquet", 
-            id_prefix='PLC-', join_col='place', id_col='place_id', zfill_len=4
-        )
+    # ==========================================
+    # 3. UPSERT KE S3 SILVER (MERGE INSERT)
+    # ==========================================
+    # Best Practice Penamaan File Dimensi: Cukup nama tabelnya (Tanpa tanggal)
+    # S3 Path: silver/earthquake/dim_place/dim_place.parquet
+    
+    upsert_dimension(
+        df_new=df_place, 
+        bucket=bucket_name, 
+        key="silver/earthquake/dim_place/dim_place.parquet", 
+        id_prefix='PLC-', join_col='place', id_col='place_id', zfill_len=4
+    )
 
-        upsert_dimension(
-            df_new=df_alert, 
-            bucket=bucket_name, 
-            key="silver/earthquake/dim_alert/dim_alert.parquet", 
-            id_prefix='ALT-', join_col='alert', id_col='alert_id', zfill_len=2
-        )
+    upsert_dimension(
+        df_new=df_alert, 
+        bucket=bucket_name, 
+        key="silver/earthquake/dim_alert/dim_alert.parquet", 
+        id_prefix='ALT-', join_col='alert', id_col='alert_id', zfill_len=2
+    )
 
-        upsert_dimension(
-            df_new=df_type, 
-            bucket=bucket_name, 
-            key="silver/earthquake/dim_type/dim_type.parquet", 
-            id_prefix='TYP-', join_col='event_type', id_col='type_id', zfill_len=2
-        )
+    upsert_dimension(
+        df_new=df_type, 
+        bucket=bucket_name, 
+        key="silver/earthquake/dim_type/dim_type.parquet", 
+        id_prefix='TYP-', join_col='event_type', id_col='type_id', zfill_len=2
+    )
 
-        print(f"🎉 SUKSES! 3 Tabel Dimensi berhasil di-upsert ke Silver.")
-        return {'statusCode': 200, 'body': 'Dimensions Upserted Successfully'}
+    print(f"🎉 SUKSES! 3 Tabel Dimensi berhasil di-upsert ke Silver.")
+    #return {'statusCode': 200, 'body': 'Dimensions Upserted Successfully'}
 
-    except Exception as e:
-        print(f"Error di Task DIM: {str(e)}")
-        raise e
+except Exception as e:
+    print(f"Error di Task DIM: {str(e)}")
+    raise e
