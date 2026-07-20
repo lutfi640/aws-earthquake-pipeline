@@ -109,21 +109,21 @@ try:
     upsert_dimension(
         df_new=df_place, 
         bucket=bucket_name, 
-        key="silver/earthquake/dim_place/dim_place.parquet", 
+        key="SILVER/earthquake/dim_place/dim_place.parquet", 
         id_prefix='PLC-', join_col='place', id_col='place_id', zfill_len=4
     )
 
     upsert_dimension(
         df_new=df_alert, 
         bucket=bucket_name, 
-        key="silver/earthquake/dim_alert/dim_alert.parquet", 
+        key="SILVER/earthquake/dim_alert/dim_alert.parquet", 
         id_prefix='ALT-', join_col='alert', id_col='alert_id', zfill_len=2
     )
 
     upsert_dimension(
         df_new=df_type, 
         bucket=bucket_name, 
-        key="silver/earthquake/dim_type/dim_type.parquet", 
+        key="SILVER/earthquake/dim_type/dim_type.parquet", 
         id_prefix='TYP-', join_col='event_type', id_col='type_id', zfill_len=2
     )
 
