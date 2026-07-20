@@ -70,9 +70,8 @@ def upsert_dimension(df_new, bucket, key, id_prefix, join_col, id_col, zfill_len
         print(f"⏭️ Tidak ada data baru untuk {key}. Skip upload.")
 
 # ==========================================
-# 2. LOGIC TASK: BUILD DIMENSIONS
+# 2. LOGIC TASK: BUILD DIMENSIONS (LANGSUNG EKSEKUSI)
 # ==========================================
-# def lambda_handler(event, context):
 print("Menerima event dinamis dari Airflow:", event)
 
 bucket_name = event.get('bucket', 'learn-aws-imam')
@@ -102,9 +101,6 @@ try:
     # ==========================================
     # 3. UPSERT KE S3 SILVER (MERGE INSERT)
     # ==========================================
-    # Best Practice Penamaan File Dimensi: Cukup nama tabelnya (Tanpa tanggal)
-    # S3 Path: silver/earthquake/dim_place/dim_place.parquet
-    
     upsert_dimension(
         df_new=df_place, 
         bucket=bucket_name, 
@@ -127,7 +123,6 @@ try:
     )
 
     print(f"🎉 SUKSES! 3 Tabel Dimensi berhasil di-upsert ke Silver.")
-    #return {'statusCode': 200, 'body': 'Dimensions Upserted Successfully'}
 
 except Exception as e:
     print(f"Error di Task DIM: {str(e)}")
