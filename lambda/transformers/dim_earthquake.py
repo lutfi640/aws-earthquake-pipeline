@@ -1,27 +1,35 @@
 import boto3
-import botocore
 import json
 import pandas as pd
 import io
 from datetime import datetime
 
 # ==========================================
-# 1. FUNGSI SAKTI UPSERT (FULL INLINE)
+# 1. FUNGSI SAKTI UPSERT (FULL INLINE & NO BOTOCORE)
 # ==========================================
 def upsert_dimension(df_new, bucket, key, id_prefix, join_col, id_col, zfill_len):
     """Fungsi SAKTI untuk nge-merge dan auto-increment ID dimensi di S3, 
-    semua logic S3 digabung (inline) biar gak error NameError di Airflow exec()"""
+    semua logic S3 digabung (inline) dan tanpa import botocore"""
     s3_client = boto3.client('s3')
     
-    # --- 1. BACA FILE LAMA DARI S3 (INLINED) ---
-    try:
+    # --- 1. CEK & BACA FILE LAMA DARI S3 (TANPA BOTOCORE EXCEPTION) ---
+    # Kita nge-list isi S3 di prefix tersebut buat ngecek filenya udah ada/belum
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=key)
+    
+    file_exists = False
+    if 'Contents' in response:
+        for item in response['Contents']:
+            if item['Key'] == key:
+                file_exists = True
+                break
+                
+    if file_exists:
+        # Skenario: File udah ada, baca parquetnya
         obj = s3_client.get_object(Bucket=bucket, Key=key)
         df_existing = pd.read_parquet(io.BytesIO(obj['Body'].read()))
-    except botocore.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
-            df_existing = pd.DataFrame() # File belum ada
-        else:
-            raise e
+    else:
+        # Skenario First Run: File belum ada, kasih dataframe kosong
+        df_existing = pd.DataFrame()
     
     # --- 2. LOGIC FILTER DATA BARU & AUTO INCREMENT ---
     if df_existing.empty:
