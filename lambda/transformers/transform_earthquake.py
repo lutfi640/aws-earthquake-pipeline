@@ -57,16 +57,8 @@ try:
         'properties.type': 'type'
     }, inplace=True)
 
-    # Create memory buffer & Convert ke Parquet
-    # parquet_buffer = io.BytesIO()
-    # df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
-
-    # Upload ke S3 (Silver Layer)
-    # silver_path = file_key.replace('BRONZE', 'SILVER').replace('.json', '.parquet')
-    # upload_to_s3(bucket_name, silver_path, parquet_buffer.getvalue())
-
     # ==========================================
-    # [REVISI] IMPLEMENTASI DYNAMIC HIVE PARTITIONING 
+    # IMPLEMENTASI DYNAMIC HIVE PARTITIONING 
     # ==========================================
     print("Mulai memecah partisi data berdasarkan event_date...")
     
@@ -86,15 +78,13 @@ try:
         
         # Format penamaan S3 menggunakan Hive Partitioning (lowercase best practice)
         # Bakal bikin S3 Prefix: silver/earthquake/fact_earthquake/dt=YYYY-MM-DD/
-        silver_path = f"silver/earthquake/fact_earthquake/dt={event_date}/data.parquet"
+        silver_path = f"SILVER/earthquake/fact_earthquake/dt={event_date}/data.parquet"
         
         # Upload pecahan data ke S3
         upload_to_s3(bucket_name, silver_path, parquet_buffer.getvalue())
     
     print(f"Sukses! Semua data dari {file_key} diproses & dipartisi ke Silver layer.")
     
-    #print(f"Sukses! Data diproses ke Silver layer: {silver_path}")
-
 except Exception as e:
     print(f"Error terjadi di dalam Lambda Executor: {str(e)}")
     raise e # Kita raise error-nya biar Airflow tahu kalau task ini gagal
