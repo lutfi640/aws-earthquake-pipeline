@@ -6,36 +6,24 @@ import io
 from datetime import datetime
 
 # ==========================================
-# 1. FUNGSI UTILS
+# 1. FUNGSI SAKTI UPSERT (FULL INLINE)
 # ==========================================
-def read_from_s3(bucket, key):
+def upsert_dimension(df_new, bucket, key, id_prefix, join_col, id_col, zfill_len):
+    """Fungsi SAKTI untuk nge-merge dan auto-increment ID dimensi di S3, 
+    semua logic S3 digabung (inline) biar gak error NameError di Airflow exec()"""
     s3_client = boto3.client('s3')
-    obj = s3_client.get_object(Bucket=bucket, Key=key)
-    return obj['Body'].read().decode('utf-8')
-
-def read_parquet_from_s3(bucket, key):
-    """Membaca Parquet dari S3. Kalau file belum ada (First Run), return DataFrame kosong."""
-    s3_client = boto3.client('s3')
+    
+    # --- 1. BACA FILE LAMA DARI S3 (INLINED) ---
     try:
         obj = s3_client.get_object(Bucket=bucket, Key=key)
-        return pd.read_parquet(io.BytesIO(obj['Body'].read()))
+        df_existing = pd.read_parquet(io.BytesIO(obj['Body'].read()))
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
-            return pd.DataFrame() # File belum ada
+            df_existing = pd.DataFrame() # File belum ada
         else:
             raise e
-
-def upload_df_to_parquet_s3(df, bucket, key):
-    s3_client = boto3.client('s3')
-    parquet_buffer = io.BytesIO()
-    df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
-    s3_client.put_object(Bucket=bucket, Key=key, Body=parquet_buffer.getvalue())
-    print(f"Sukses upload parquet ke s3://{bucket}/{key}")
-
-def upsert_dimension(df_new, bucket, key, id_prefix, join_col, id_col, zfill_len):
-    """Fungsi SAKTI untuk nge-merge dan auto-increment ID dimensi di S3"""
-    df_existing = read_parquet_from_s3(bucket, key)
     
+    # --- 2. LOGIC FILTER DATA BARU & AUTO INCREMENT ---
     if df_existing.empty:
         # Skenario 1: File belum ada (First Run)
         df_new[id_col] = id_prefix + (df_new.index + 1).astype(str).str.zfill(zfill_len)
@@ -60,12 +48,16 @@ def upsert_dimension(df_new, bucket, key, id_prefix, join_col, id_col, zfill_len
             df_final = df_existing
             is_updated = False
             
-    # Upload cuma kalau ada penambahan data baru
+    # --- 3. UPLOAD KE S3 KALAU ADA DATA BARU (INLINED) ---
     if is_updated:
         # Reorder kolom biar ID selalu di depan
         cols = [id_col] + [c for c in df_final.columns if c != id_col]
-        upload_df_to_parquet_s3(df_final[cols], bucket, key)
-        print(f"✅ Dimensi Ter-update: {key} (Total Row: {len(df_final)})")
+        df_to_upload = df_final[cols]
+        
+        parquet_buffer = io.BytesIO()
+        df_to_upload.to_parquet(parquet_buffer, index=False, engine='pyarrow')
+        s3_client.put_object(Bucket=bucket, Key=key, Body=parquet_buffer.getvalue())
+        print(f"✅ Dimensi Ter-update: {key} (Total Row: {len(df_to_upload)})")
     else:
         print(f"⏭️ Tidak ada data baru untuk {key}. Skip upload.")
 
@@ -81,8 +73,13 @@ file_key = event.get('key', default_key)
 
 try:
     print(f"[TASK: DIM] Mulai memproses file: {file_key} dari bucket: {bucket_name}")
-    content = read_from_s3(bucket_name, file_key)
+    
+    # --- BACA JSON BRONZE (INLINED) ---
+    s3_client_main = boto3.client('s3')
+    obj_main = s3_client_main.get_object(Bucket=bucket_name, Key=file_key)
+    content = obj_main['Body'].read().decode('utf-8')
     data = json.loads(content)
+    
     df_raw = pd.json_normalize(data['features'])
 
     # 1. Siapin Data Unik Baru: DIM_PLACE
