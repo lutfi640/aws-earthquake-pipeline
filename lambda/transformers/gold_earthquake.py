@@ -38,6 +38,7 @@ try:
     df_dim_type = read_parquet_from_s3(bucket_name, "SILVER/earthquake/dim_type/dim_type.parquet")
 
     # Hitung batasan waktu: Hari ini sampai 30 hari ke belakang (Cutoff)
+    print('king')
     today = datetime.now()
     thirty_days_ago = today - timedelta(days=30)
     
