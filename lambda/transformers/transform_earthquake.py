@@ -1,3 +1,9 @@
+import boto3
+import json
+import pandas as pd
+import io
+from datetime import datetime
+
 # ==========================================
 # 1. FUNGSI UTILS (LANGSUNG DITEMPEL DI SINI)
 # ==========================================
@@ -6,6 +12,12 @@ def read_from_s3(bucket, key):
     s3_client = boto3.client('s3')
     obj = s3_client.get_object(Bucket=bucket, Key=key)
     return obj['Body'].read().decode('utf-8')
+
+def read_parquet_from_s3(bucket, key):
+    """Fungsi baru buat baca tabel dimensi (Parquet) dari S3"""
+    s3_client = boto3.client('s3')
+    obj = s3_client.get_object(Bucket=bucket, Key=key)
+    return pd.read_parquet(io.BytesIO(obj['Body'].read()))
 
 def upload_to_s3(bucket, key, data):
     s3_client = boto3.client('s3')
@@ -34,7 +46,7 @@ try:
     df['properties.time'] = pd.to_datetime(df['properties.time'], unit='ms')
     df['properties.updated'] = pd.to_datetime(df['properties.updated'], unit='ms')
     df = df.loc[:, ['properties.mag', 'properties.place', 'properties.time',
-                   'properties.updated', 'properties.alert', 'properties.tsunami', 'properties.sig', 
+                    'properties.updated', 'properties.alert', 'properties.tsunami', 'properties.sig', 
                     'properties.type', 'geometry.coordinates']]
     
     #pecah kolom geometry.coordinates menjadi tiga kolom baru: longitude, latitude, depth
@@ -57,8 +69,32 @@ try:
         'properties.type': 'type'
     }, inplace=True)
 
+    # Tangani nilai Null di alert (karena di Dimensi kita set 'unknown')
+    df['alert'] = df['alert'].fillna('unknown')
+
     # ==========================================
-    # IMPLEMENTASI DYNAMIC HIVE PARTITIONING 
+    # 3. LOOKUP KE TABEL DIMENSI (MERGE UNTUK AMBIL ID)
+    # ==========================================
+    print("Membaca data tabel dimensi dari layer Silver...")
+    df_dim_place = read_parquet_from_s3(bucket_name, "silver/earthquake/dim_place/dim_place.parquet")
+    df_dim_alert = read_parquet_from_s3(bucket_name, "silver/earthquake/dim_alert/dim_alert.parquet")
+    df_dim_type = read_parquet_from_s3(bucket_name, "silver/earthquake/dim_type/dim_type.parquet")
+    
+    print("Melakukan Join (Mapping ID)...")
+    # Join Place -> dapat place_id
+    df = df.merge(df_dim_place[['place', 'place_id']], on='place', how='left')
+    
+    # Join Alert -> dapat alert_id
+    df = df.merge(df_dim_alert[['alert', 'alert_id']], on='alert', how='left')
+    
+    # Join Type -> dapat type_id (Di dataframe dimensi, nama kolomnya kemaren kita set 'event_type')
+    df = df.merge(df_dim_type[['event_type', 'type_id']], left_on='type', right_on='event_type', how='left')
+    
+    # Buang kolom string aslinya karena sekarang sudah diwakili oleh ID
+    df.drop(columns=['place', 'alert', 'type', 'event_type'], inplace=True)
+
+    # ==========================================
+    # 4. IMPLEMENTASI DYNAMIC HIVE PARTITIONING 
     # ==========================================
     print("Mulai memecah partisi data berdasarkan event_date...")
     
@@ -77,13 +113,13 @@ try:
         group_df.to_parquet(parquet_buffer, index=False, engine='pyarrow')
         
         # Format penamaan S3 menggunakan Hive Partitioning (lowercase best practice)
-        # Bakal bikin S3 Prefix: silver/earthquake/fact_earthquake/dt=YYYY-MM-DD/
+        # Bakal bikin S3 Prefix: SILVER/earthquake/fact_earthquake/dt=YYYY-MM-DD/
         silver_path = f"SILVER/earthquake/fact_earthquake/dt={event_date}/data.parquet"
         
         # Upload pecahan data ke S3
         upload_to_s3(bucket_name, silver_path, parquet_buffer.getvalue())
     
-    print(f"Sukses! Semua data dari {file_key} diproses & dipartisi ke Silver layer.")
+    print(f"Sukses! Semua data diproses, ter-mapping ke ID dimensi, & dipartisi ke {silver_path}")
     
 except Exception as e:
     print(f"Error terjadi di dalam Lambda Executor: {str(e)}")
