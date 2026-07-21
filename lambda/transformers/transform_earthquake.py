@@ -76,9 +76,9 @@ try:
     # 3. LOOKUP KE TABEL DIMENSI (MERGE UNTUK AMBIL ID)
     # ==========================================
     print("Membaca data tabel dimensi dari layer Silver...")
-    df_dim_place = read_parquet_from_s3(bucket_name, "silver/earthquake/dim_place/dim_place.parquet")
-    df_dim_alert = read_parquet_from_s3(bucket_name, "silver/earthquake/dim_alert/dim_alert.parquet")
-    df_dim_type = read_parquet_from_s3(bucket_name, "silver/earthquake/dim_type/dim_type.parquet")
+    df_dim_place = read_parquet_from_s3(bucket_name, "SILVER/earthquake/dim_place/dim_place.parquet")
+    df_dim_alert = read_parquet_from_s3(bucket_name, "SILVER/earthquake/dim_alert/dim_alert.parquet")
+    df_dim_type = read_parquet_from_s3(bucket_name, "SILVER/earthquake/dim_type/dim_type.parquet")
     
     print("Melakukan Join (Mapping ID)...")
     # Join Place -> dapat place_id

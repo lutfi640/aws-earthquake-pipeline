@@ -80,4 +80,4 @@ with DAG(
 
     
 
-    extract_task >> [generate_dim, transform_task]
+    extract_task >> generate_dim >> transform_task
