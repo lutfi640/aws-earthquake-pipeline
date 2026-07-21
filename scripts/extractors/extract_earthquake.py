@@ -17,7 +17,7 @@ response = requests.get(url)
 
 if response.status_code == 200:
     data = response.json()
-    path = f"BRONZE/earthquake_data_{datetime.now().strftime('%Y-%m-%d')}.json"
+    path = f"BRONZE/earthquake/stg_earthquake/earthquake_data_{datetime.now().strftime('%Y-%m-%d')}.json"
 
     #upload to S3
     data_string = json.dumps(data)

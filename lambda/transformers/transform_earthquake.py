@@ -31,7 +31,7 @@ print("Menerima event dinamis dari Airflow:", event)
 
 # Ambil bucket dan key dari event (Default ke hari ini kalau gak ada)
 bucket_name = event.get('bucket', 'learn-aws-imam')
-default_key = f"BRONZE/earthquake_data_{datetime.now().strftime('%Y-%m-%d')}.json"
+default_key = f"BRONZE/earthquake/stg_earthquake/earthquake_data_{datetime.now().strftime('%Y-%m-%d')}.json"
 file_key = event.get('key', default_key)
 
 print(f"Mulai memproses file: {file_key} dari bucket: {bucket_name}")
