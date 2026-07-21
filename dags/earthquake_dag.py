@@ -23,14 +23,16 @@ with DAG(
     tags=['aws', 'earthquake']
 ) as dag:
 
-    # TASK 1: EXTRACT (Tetap seperti biasa)
+    # -------------------------------------------------------------
+    # TASK 1: Extract bronze
+    # -------------------------------------------------------------
     extract_task = BashOperator(
         task_id='extract_api_to_bronze',
         bash_command='python /opt/airflow/scripts/extractors/extract_earthquake.py',
     )
 
     # -------------------------------------------------------------
-    # TRIK RAHASIA: Membaca file script transform lokal EC2 lo sebagai string
+    # TASK 2: GENERATE DIM 
     # -------------------------------------------------------------
     try:
         with open('/opt/airflow/lambda/transformers/dim_earthquake.py', 'r') as file:
@@ -40,9 +42,6 @@ with DAG(
         script_code_string = f"print('Gagal membaca file script lokal: {str(e)}')"
         raise e
 
-    # -------------------------------------------------------------
-    # TASK 2: GENERATE DIM 
-    # -------------------------------------------------------------
     generate_dim = LambdaInvokeOperator(
         task_id='generate_dim_earthquake',
         function_name='earthquake-transformer-docker', # Nama fungsi Lambda Docker lo
@@ -56,6 +55,9 @@ with DAG(
     )
 
 
+    # -------------------------------------------------------------
+    # TASK 3: TRANSFORM Silver (Fact Table)
+    # -------------------------------------------------------------
     try:
         with open('/opt/airflow/lambda/transformers/transform_earthquake.py', 'r') as file:
             script_code_string = file.read()
@@ -63,9 +65,7 @@ with DAG(
         # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
         script_code_string = f"print('Gagal membaca file script lokal: {str(e)}')"
         raise e
-    # -------------------------------------------------------------
-    # TASK 3: TRANSFORM (Kirim kodenya lewat payload parameter 'code')
-    # -------------------------------------------------------------
+    
     transform_task = LambdaInvokeOperator(
         task_id='transform_bronze_to_silver',
         function_name='earthquake-transformer-docker', # Nama fungsi Lambda Docker lo
@@ -78,6 +78,30 @@ with DAG(
         log_type='Tail'
     )
 
+
+    # -------------------------------------------------------------
+    # TASK 4: GOLD Datamart
+    # -------------------------------------------------------------
+    try:
+        with open('/opt/airflow/lambda/transformers/gold_earthquake.py', 'r') as file:
+            script_code_string = file.read()
+    except Exception as e:
+        # Cadangan kalau filenya belum ke-copy ke EC2 agar DAG gak rusak/broken
+        script_code_string = f"print('Gagal membaca file script lokal: {str(e)}')"
+        raise e
+    
+    gold_task = LambdaInvokeOperator(
+        task_id='transform_silver_to_gold',
+        function_name='earthquake-transformer-docker', # Nama fungsi Lambda Docker lo
+        payload=json.dumps({
+            "code": script_code_string, # KODINGAN LO DISUNTIK DI SINI SEBAGAI TEKS!
+            "bucket": "learn-aws-imam", # Parameter tambahan buat dibaca script lo
+            "key": s3_key_bronze
+        }),
+        aws_conn_id='aws_default',
+        log_type='Tail'
+    )
+
     
 
-    extract_task >> generate_dim >> transform_task
+    extract_task >> generate_dim >> transform_task >> gold_task
