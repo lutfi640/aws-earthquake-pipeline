@@ -44,8 +44,12 @@ try:
     
     print(f"Mengambil data Fact dari partisi tanggal: {thirty_days_ago.strftime('%Y-%m-%d')} sampai {today.strftime('%Y-%m-%d')}")
     
-    # Bikin list tanggal (String YYYY-MM-DD) untuk narik folder partisi di S3
-    date_list = [(today - timedelta(days=x)).strftime('%Y-%m-%d') for x in range(31)]
+    # PERBAIKAN: Mengganti List Comprehension dengan For Loop Tradisional
+    # Biar gak kena bug scope exec() di Airflow
+    date_list = []
+    for x in range(31):
+        tanggal_mundur = (today - timedelta(days=x)).strftime('%Y-%m-%d')
+        date_list.append(tanggal_mundur)
     
     fact_dfs = []
     
